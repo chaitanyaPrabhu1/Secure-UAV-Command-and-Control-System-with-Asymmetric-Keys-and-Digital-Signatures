@@ -1,4 +1,4 @@
-# Secure UAV Command and Control System (C Implementation)
+# Secure UAV Command and Control System (C++ Implementation)
 
 ## Course
 **System and Network Security (CS8.403)**  
