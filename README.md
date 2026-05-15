@@ -1,200 +1,122 @@
-# Secure UAV Command and Control System (C++ Implementation)
+# Secure UAV Command and Control System
 
-## Course
-**System and Network Security (CS8.403)**  
-International Institute of Information Technology, Hyderabad
+Lab Assignment 2 — System and Network Security (CS8.403)
 
-## Lab Assignment 2  
-**Secure UAV Command and Control System with Asymmetric Keys and Digital Signatures**
+A distributed UAV Command-and-Control (C2) system with manual ElGamal cryptography, mutual authentication, session key derivation, and group key establishment. Implemented in C++17.
 
----
+## Dependencies
 
-## 1. Overview
+- **GMP** (GNU Multiple Precision Arithmetic Library) — for big-number math
+- **OpenSSL** (libcrypto) — for SHA-256, HMAC-SHA256, AES-256-CBC
+- **CMake** ≥ 3.16
+- **g++** with C++17 support
 
-This project implements a **secure, distributed UAV Command-and-Control (C2) system** consisting of a **Mission Control Center (MCC)** and multiple **Drones**. The system enables authenticated drones to securely communicate with the MCC and receive encrypted fleet-wide broadcast commands.
-
-The design strictly follows the assignment specification and emphasizes **manual implementation of asymmetric cryptography**, secure protocol design, and resistance to common network attacks.
-
----
-
-## 2. Objectives
-
-- Implement **ElGamal public-key encryption and digital signatures** manually
-- Achieve **mutual authentication** between MCC and drones
-- Establish secure **session keys** with freshness guarantees
-- Enable **secure group communication** for broadcast commands
-- Demonstrate resistance to replay, MITM, and unauthorized access attacks
-
----
-
-## 3. Project Structure (Flat Layout)
-
-```
-
-.
-├── crypto_utils.c        # Modular arithmetic, ElGamal, hashing, AES wrappers
-├── crypto_utils.h
-│
-├── protocol.c            # Protocol phases (0–3), message handling
-├── protocol.h
-│
-├── mcc.c                 # Mission Control Center (server)
-├── drone.c               # Drone client
-│
-├── attacks.c             # Replay, MITM, and rogue drone demonstrations
-│
-├── common.h              # Shared constants, opcodes, message structures
-│
-├── test_crypto.c         # Cryptographic correctness and performance tests
-│
-├── Makefile
-├── README.md
-├── SECURITY.md
-└── .gitignore
-
-````
-
----
-
-## 4. Cryptographic Components
-
-### 4.1 Asymmetric Cryptography (Manual ElGamal)
-
-The following components are implemented **from scratch**:
-
-- Modular exponentiation
-- Extended Euclidean Algorithm
-- Modular inverse computation
-- ElGamal key generation
-- ElGamal encryption and decryption
-- ElGamal digital signature and verification
-
-No high-level asymmetric cryptographic libraries are used.
-
----
-
-### 4.2 Symmetric Cryptography
-
-- **AES-256-CBC** is used for encrypting group commands
-- **HMAC-SHA256** is used for message integrity
-- AES is used strictly as a raw block cipher, as permitted by the assignment
-
----
-
-## 5. Communication Protocol
-
-### Phase 0 — Parameter Initialization
-- MCC distributes cryptographic parameters `(p, g, SL)`
-- Drone verifies prime length and security level
-- Prevents parameter downgrade and tampering attacks
-
-### Phase 1 — Mutual Authentication
-- Drone authenticates to MCC using encrypted secrets and digital signatures
-- MCC proves authenticity by decrypting and re-encrypting the shared secret
-
-### Phase 2 — Session Key Establishment
-- Both parties derive a session key using shared secrets, timestamps, and nonces
-- Session key correctness is verified using HMAC
-
-### Phase 3 — Group Key Establishment
-- MCC derives a fleet-wide Group Key (GK)
-- GK is securely distributed to each drone
-- All broadcast commands are encrypted using GK
-
----
-
-## 6. Security Properties
-
-- **Authentication:** Ensured via ElGamal digital signatures
-- **Confidentiality:** Encryption protects all sensitive data
-- **Integrity:** HMAC detects message tampering
-- **Freshness:** Nonces and timestamps prevent replay attacks
-- **Limited Forward Secrecy:** Session keys are ephemeral and not reused
-
-Detailed analysis is provided in `SECURITY.md`.
-
----
-
-## 7. Attack Demonstrations
-
-The file `attacks.c` demonstrates the following attacks:
-
-1. **Replay Attack**  
-   Re-sending a previously captured authentication request
-
-2. **Man-in-the-Middle (MITM) Attack**  
-   Tampering with cryptographic parameters during Phase 0
-
-3. **Unauthorized Access**  
-   Rogue drone attempting to authenticate using an invalid identity
-
-All attacks are successfully detected and mitigated.
-
----
-
-## 8. Build Instructions
-
-### Dependencies
-- GCC
-- GMP (GNU Multiple Precision Arithmetic Library)
-- OpenSSL crypto library (for SHA-256 and AES only)
-
-### Compile
-```bash
-make
-````
-
-### Clean
+### Install (Ubuntu/Debian)
 
 ```bash
-make clean
+sudo apt install build-essential cmake libgmp-dev libssl-dev
 ```
 
----
+## Build
 
-## 9. Running the System
+```bash
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+```
 
-### Start the Mission Control Center
+This produces three executables in `build/`:
+- `mcc` — Mission Control Center server
+- `drone` — Drone client
+- `attacks` — Attack demonstration suite
+
+## Usage
+
+### 1. Start MCC Server
 
 ```bash
 ./mcc
 ```
 
-### Start a Drone
+The MCC will:
+1. Generate 2048-bit ElGamal parameters (takes a few seconds to minutes)
+2. Start listening on TCP port 5555
+3. Present an interactive CLI
+
+### 2. Start Drone(s)
+
+In separate terminals:
 
 ```bash
-./drone
+./drone DRONE_001
+./drone DRONE_002
+./drone DRONE_003
 ```
 
-### Run Attack Demonstrations
+Each drone will automatically:
+1. Connect to MCC (localhost:5555)
+2. Receive and validate parameters (Phase 0)
+3. Perform mutual authentication (Phases 1A, 1B)
+4. Derive session key (Phase 2)
+5. Wait for group key and broadcast commands (Phase 3)
+
+### 3. MCC CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `list` | Show all connected drones and their status |
+| `broadcast <cmd>` | Generate Group Key, distribute it, and broadcast an encrypted command |
+| `shutdown` | Close all sessions and exit |
+
+### 4. Run Attack Demo
+
+With MCC running:
 
 ```bash
-./attacks
+./attacks         # Run all 3 attacks
+./attacks replay  # Replay attack only
+./attacks mitm    # MitM tampering only
+./attacks unauth  # Unauthorized access only
 ```
 
----
+## File Structure
 
-## 10. Performance Notes
+| File | Description |
+|------|-------------|
+| `crypto_utils.h/cpp` | Manual ElGamal, modular math, HMAC/AES wrappers |
+| `mcc.cpp` | Concurrent MCC server with protocol logic |
+| `drone.cpp` | Drone client-side protocol logic |
+| `attacks.cpp` | Attack demonstration scripts |
+| `SECURITY.md` | Freshness and Forward Secrecy analysis |
+| `CMakeLists.txt` | Build configuration |
 
-* Modular exponentiation with 2048-bit primes was benchmarked using `test_crypto.c`
-* Performance measurements are included to demonstrate feasibility
-* Execution times are acceptable for the scope of this assignment
+## Performance
 
----
+Performance measured on a typical machine with 2048-bit primes:
 
-## 11. Implementation Notes
+| Operation | Time |
+|-----------|------|
+| Safe Prime Generation (2048-bit) | ~10–120 seconds |
+| ElGamal Key Generation | ~10–120 seconds |
+| Modular Exponentiation (2048-bit) | < 10 ms |
+| ElGamal Encrypt | < 20 ms |
+| ElGamal Decrypt | < 10 ms |
+| ElGamal Sign | < 20 ms |
+| ElGamal Verify | < 20 ms |
+| Full Handshake (Phases 0–2) | < 500 ms (after keygen) |
 
-* The implementation prioritizes **correctness and clarity**
-* Cryptographic logic is strictly separated from networking code
-* Concurrency is implemented using a thread-per-drone model
-* The code adheres to assignment library usage restrictions
+> **Note**: Safe prime generation is the bottleneck. Once parameters are generated, all other operations are fast.
 
----
+## Protocol Opcodes
 
-## 12. Disclaimer
-
-This project is developed **strictly for academic purposes** as part of a university assignment.
-It is not intended for real-world deployment in security-critical environments.
-
----
-
+| Opcode | Name | Description |
+|--------|------|-------------|
+| 0x10 | PARAM_INIT | Phase 0: Crypto parameters + MCC signature |
+| 0x20 | AUTH_REQ | Phase 1A: Drone authentication packet |
+| 0x30 | AUTH_RES | Phase 1B: MCC proof of decryption |
+| 0x40 | SK_CONFIRM | Phase 2: Session key verification (HMAC) |
+| 0x50 | SUCCESS | Handshake complete |
+| 0x60 | ERR_MISMATCH | Key or HMAC verification failed |
+| 0x70 | GROUP_KEY | Phase 3: Distribution of GK |
+| 0x80 | GROUP_CMD | Secure broadcast (encrypted via GK) |
+| 0x90 | SHUTDOWN | Close all drone connections |
